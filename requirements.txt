@@ -1,0 +1,5 @@
+# Core dependencies
+tensorflow
+keras
+scikit-learn
+numpy
