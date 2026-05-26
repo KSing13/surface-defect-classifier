@@ -1,0 +1,17 @@
+{
+  "project_name": "surface-defect-classifier",
+  "version": "1.0.0",
+  "model_settings": {
+    "architecture": "resnet50",
+    "architecture": "MobileNetV2",
+    "input_shape": [224, 224, 3],
+    "batch_size": 32,
+    "epochs": 50,
+    "learning_rate": 0.001
+  },
+  "paths": {
+    "data_dir": "./data",
+    "output_dir": "./outputs",
+    "checkpoint_dir": "./checkpoints"
+  }
+}

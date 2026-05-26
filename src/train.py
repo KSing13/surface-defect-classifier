@@ -1,46 +1,52 @@
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras import layers, models
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import os
+import tensorflow as tf
+from tensorflow import keras
+import config
 
-DATA_DIR = "data"
-MODEL_DIR = "models"
-os.makedirs(MODEL_DIR, exist_ok=True)
+os.makedirs(config.MODEL_DIR, exist_ok=True)
 
-IMG_SIZE = (224, 224)
-BATCH_SIZE = 32
-EPOCHS = 10
-NUM_CLASSES = 6  # NEU dataset
-
-datagen = ImageDataGenerator(
-    rescale=1./255,
-    validation_split=0.2
+# Modern data loading using tf.data
+train_ds = keras.utils.image_dataset_from_directory(
+    config.DATA_DIR,
+    validation_split=0.2,
+    subset="training",
+    seed=config.SEED,
+    image_size=config.IMG_SIZE,
+    batch_size=config.BATCH_SIZE,
+    label_mode='categorical'
 )
 
-train_ds = datagen.flow_from_directory(
-    DATA_DIR,
-    target_size=IMG_SIZE,
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    subset='training'
+val_ds = keras.utils.image_dataset_from_directory(
+    config.DATA_DIR,
+    validation_split=0.2,
+    subset="validation",
+    seed=config.SEED,
+    image_size=config.IMG_SIZE,
+    batch_size=config.BATCH_SIZE,
+    label_mode='categorical'
 )
 
-val_ds = datagen.flow_from_directory(
-    DATA_DIR,
-    target_size=IMG_SIZE,
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    subset='validation'
-)
+# Dynamically determine the number of classes from the dataset
+num_classes = len(train_ds.class_names)
 
-base_model = MobileNetV2(include_top=False, input_shape=(224,224,3), weights='imagenet')
+# Data Augmentation layers integrated into the model
+data_augmentation = keras.Sequential([
+    keras.layers.RandomFlip("horizontal_and_vertical"),
+    keras.layers.RandomRotation(0.1),
+    keras.layers.RandomZoom(0.1),
+])
+
+base_model = keras.applications.MobileNetV2(include_top=False, input_shape=(*config.IMG_SIZE, 3), weights='imagenet')
 base_model.trainable = False
 
-model = models.Sequential([
+model = keras.Sequential([
+    keras.layers.InputLayer(input_shape=(*config.IMG_SIZE, 3)),
+    data_augmentation,
+    keras.layers.Rescaling(1./127.5, offset=-1), # Preprocessing for MobileNetV2 [-1, 1]
     base_model,
-    layers.GlobalAveragePooling2D(),
-    layers.Dense(128, activation='relu'),
-    layers.Dense(NUM_CLASSES, activation='softmax')
+    keras.layers.GlobalAveragePooling2D(),
+    keras.layers.Dense(128, activation='relu'),
+    keras.layers.Dense(num_classes, activation='softmax')
 ])
 
 model.compile(
@@ -49,7 +55,18 @@ model.compile(
     metrics=['accuracy']
 )
 
-history = model.fit(train_ds, validation_data=val_ds, epochs=EPOCHS)
+checkpoint_path = os.path.join(config.MODEL_DIR, "surface_defect_model.keras")
 
-model.save(os.path.join(MODEL_DIR, "surface_defect_model.h5"))
+my_callbacks = [
+    keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True, monitor='val_loss'),
+    keras.callbacks.ModelCheckpoint(checkpoint_path, save_best_only=True, monitor='val_loss')
+]
+
+history = model.fit(
+    train_ds, 
+    validation_data=val_ds, 
+    epochs=config.EPOCHS,
+    callbacks=my_callbacks
+)
+
 print("Model training complete and saved.")

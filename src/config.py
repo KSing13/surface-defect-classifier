@@ -1,0 +1,7 @@
+DATA_DIR = "data"
+MODEL_DIR = "models"
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 32
+SEED = 42
+NUM_CLASSES = 6  # NEU dataset
+EPOCHS = 10
